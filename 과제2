@@ -1,0 +1,751 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+
+from tensorflow.keras.datasets import fashion_mnist
+from tensorflow.keras import layers, models
+
+# 재현성을 위한 난수 고정
+tf.keras.utils.set_random_seed(42)
+
+# 데이터 불러오기
+(x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
+
+print("훈련 데이터:", x_train.shape)
+print("테스트 데이터:", x_test.shape)
+print("훈련 레이블:", y_train.shape)
+print("테스트 레이블:", y_test.shape)
+
+# 픽셀값 정규화
+x_train = x_train.astype("float32") / 255.0
+x_test = x_test.astype("float32") / 255.0
+
+# 28×28 이미지를 784개 입력변수로 변환
+x_train = x_train.reshape(-1, 784)
+x_test = x_test.reshape(-1, 784)
+
+print(x_train.shape)
+print(x_test.shape)
+
+# DNN 모델 생성
+model_dnn = models.Sequential([
+    layers.Input(shape=(784,)),
+    layers.Dense(128, activation="relu"),
+    layers.Dense(64, activation="relu"),
+    layers.Dense(10, activation="softmax")
+])
+
+# 모델 컴파일
+model_dnn.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+model_dnn.summary()
+
+# DNN 학습
+history_dnn = model_dnn.fit(
+    x_train,
+    y_train,
+    epochs=30,
+    batch_size=128,
+    validation_split=0.2,
+    verbose=1
+)
+
+# 테스트 데이터 평가
+test_loss, test_acc = model_dnn.evaluate(
+    x_test, y_test, verbose=0
+)
+
+print(f"Test Loss: {test_loss:.4f}")
+print(f"Test Accuracy: {test_acc:.4f}")
+
+# DNN에서 사용한 784차원 데이터를 CNN 입력으로 변환
+x_train_cnn = x_train.reshape(-1, 28, 28, 1)
+x_test_cnn = x_test.reshape(-1, 28, 28, 1)
+
+print("CNN 훈련 데이터:", x_train_cnn.shape)
+print("CNN 테스트 데이터:", x_test_cnn.shape)
+
+# CNN 모델 생성
+model_cnn = models.Sequential([
+    layers.Input(shape=(28, 28, 1)),
+
+    # 첫 번째 합성곱층
+    layers.Conv2D(32, (3, 3), activation="relu", padding="same"),
+    layers.MaxPooling2D((2, 2)),
+
+    # 두 번째 합성곱층
+    layers.Conv2D(64, (3, 3), activation="relu", padding="same"),
+    layers.MaxPooling2D((2, 2)),
+
+    # 완전연결층
+    layers.Flatten(),
+    layers.Dense(128, activation="relu"),
+
+    # 출력층
+    layers.Dense(10, activation="softmax")
+])
+
+model_cnn.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+model_cnn.summary()
+
+history_cnn = model_cnn.fit(
+    x_train_cnn,
+    y_train,
+    epochs=30,
+    batch_size=128,
+    validation_split=0.2,
+    verbose=1
+)
+
+# 테스트 데이터 평가
+cnn_test_loss, cnn_test_acc = model_cnn.evaluate(
+    x_test_cnn, y_test, verbose=0
+)
+
+print(f"CNN Test Loss: {cnn_test_loss:.4f}")
+print(f"CNN Test Accuracy: {cnn_test_acc:.4f}")
+
+print("===== Fashion-MNIST 성능 비교 =====")
+print(f"DNN Accuracy: {test_acc:.4f}")
+print(f"CNN Accuracy: {cnn_test_acc:.4f}")
+print(f"Accuracy 차이 (CNN - DNN): {cnn_test_acc - test_acc:.4f}")
+
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+
+from tensorflow.keras.datasets import cifar10
+from tensorflow.keras import layers, models
+
+tf.keras.utils.set_random_seed(42)
+
+(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+
+print("훈련 데이터:", x_train.shape)
+print("테스트 데이터:", x_test.shape)
+print("훈련 레이블:", y_train.shape)
+print("테스트 레이블:", y_test.shape)
+
+# 정규화
+x_train = x_train.astype("float32") / 255.0
+x_test = x_test.astype("float32") / 255.0
+
+# DNN 입력 형태로 변환
+x_train_dnn = x_train.reshape(-1, 3072)
+x_test_dnn = x_test.reshape(-1, 3072)
+
+# 레이블을 1차원으로 변환
+y_train = y_train.reshape(-1)
+y_test = y_test.reshape(-1)
+
+print(x_train_dnn.shape)
+print(x_test_dnn.shape)
+
+def residual_dense_block(x, units):
+
+    shortcut = x
+
+    # 첫 번째 Dense + Batch Normalization
+    x = layers.Dense(units)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation("relu")(x)
+
+    # 두 번째 Dense + Batch Normalization
+    x = layers.Dense(units)(x)
+    x = layers.BatchNormalization()(x)
+
+    # Skip Connection
+    x = layers.Add()([x, shortcut])
+    x = layers.Activation("relu")(x)
+
+    return x
+
+# 입력층
+inputs = layers.Input(shape=(3072,))
+
+# 차원 변환
+x = layers.Dense(256)(inputs)
+x = layers.BatchNormalization()(x)
+x = layers.Activation("relu")(x)
+
+# Residual Block 2개
+x = residual_dense_block(x, 256)
+x = residual_dense_block(x, 256)
+
+# 완전연결층
+x = layers.Dense(128)(x)
+x = layers.BatchNormalization()(x)
+x = layers.Activation("relu")(x)
+
+# 출력층
+outputs = layers.Dense(10, activation="softmax")(x)
+
+# 모델 생성
+model_dnn = models.Model(inputs, outputs)
+
+model_dnn.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+model_dnn.summary()
+
+history_dnn = model_dnn.fit(
+    x_train_dnn,
+    y_train,
+    epochs=30,
+    batch_size=128,
+    validation_split=0.2,
+    verbose=1
+)
+
+dnn_test_loss, dnn_test_acc = model_dnn.evaluate(
+    x_test_dnn,
+    y_test,
+    verbose=0
+)
+
+print(f"DNN Test Loss: {dnn_test_loss:.4f}")
+print(f"DNN Test Accuracy: {dnn_test_acc:.4f}")
+
+x_train = x_train.astype("float32") / 255.0
+x_test = x_test.astype("float32") / 255.0
+print("CNN Train:", x_train.shape)
+print("CNN Test:", x_test.shape)
+
+from tensorflow.keras import layers, models
+import tensorflow as tf
+
+def residual_conv_block(x, filters):
+
+    shortcut = x
+
+    # 첫 번째 합성곱 + Batch Normalization
+    x = layers.Conv2D(
+        filters, (3, 3), padding="same", use_bias=False
+    )(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation("relu")(x)
+
+    # 두 번째 합성곱 + Batch Normalization
+    x = layers.Conv2D(
+        filters, (3, 3), padding="same", use_bias=False
+    )(x)
+    x = layers.BatchNormalization()(x)
+
+    # Skip Connection
+    x = layers.Add()([x, shortcut])
+    x = layers.Activation("relu")(x)
+
+    return x
+
+# 입력층
+inputs = layers.Input(shape=(32, 32, 3))
+
+# 첫 번째 합성곱층
+x = layers.Conv2D(
+    32, (3, 3), padding="same", use_bias=False
+)(inputs)
+x = layers.BatchNormalization()(x)
+x = layers.Activation("relu")(x)
+
+# 첫 번째 Residual Block
+x = residual_conv_block(x, 32)
+
+# Pooling
+x = layers.MaxPooling2D((2, 2))(x)
+
+# 두 번째 Residual Block
+x = residual_conv_block(x, 32)
+
+# Global Average Pooling
+x = layers.GlobalAveragePooling2D()(x)
+
+# 출력층
+outputs = layers.Dense(10, activation="softmax")(x)
+
+# CNN 모델
+model_cnn = models.Model(inputs, outputs)
+
+model_cnn.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+model_cnn.summary()
+
+from tensorflow.keras.callbacks import EarlyStopping
+
+early_stop_cnn = EarlyStopping(
+    monitor="val_loss",
+    patience=10,
+    restore_best_weights=True
+)
+
+history_cnn = model_cnn.fit(
+    x_train,
+    y_train,
+    epochs=30,
+    batch_size=128,
+    validation_split=0.2,
+    callbacks=[early_stop_cnn],
+    verbose=1
+)
+
+cnn_test_loss, cnn_test_acc = model_cnn.evaluate(
+    x_test, y_test, verbose=0
+)
+
+print(f"CNN Test Loss: {cnn_test_loss:.4f}")
+print(f"CNN Test Accuracy: {cnn_test_acc:.4f}")
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(8, 5))
+
+plt.plot(history_cnn.history["loss"], label="Training Loss")
+plt.plot(history_cnn.history["val_loss"], label="Validation Loss")
+
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("CIFAR-10 Residual CNN Loss")
+plt.legend()
+plt.grid(alpha=0.3)
+plt.show()
+
+best_epoch_cnn = np.argmin(history_cnn.history["val_loss"]) + 1
+
+print("CNN 실제 학습 Epoch:", len(history_cnn.history["loss"]))
+print("CNN 최적 Epoch:", best_epoch_cnn)
+
+print("===== CIFAR-10 성능 비교 =====")
+print(f"DNN Test Accuracy: {dnn_test_acc:.4f}")
+print(f"CNN Test Accuracy: {cnn_test_acc:.4f}")
+print(f"Accuracy 차이: {cnn_test_acc - dnn_test_acc:.4f}")
+
+import pandas as pd
+
+# 모델별 성능 비교
+results = pd.DataFrame({
+    "Model": ["DNN", "CNN"],
+    "Test Loss": [dnn_test_loss, cnn_test_loss],
+    "Test Accuracy": [dnn_test_acc, cnn_test_acc],
+    "Total Parameters": [
+        model_dnn.count_params(),
+        model_cnn.count_params()
+    ]
+})
+
+print(results.round(4))
+
+import pandas as pd
+import numpy as np
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+# 데이터 불러오기
+bike = pd.read_csv(r"C:\Users\swlee\Downloads\bike.csv")
+
+# 설명변수와 종속변수
+features = ["mnth", "hr", "workingday", "weathersit", "temp"]
+target = "bikers"
+
+X = bike[features].copy()
+y = bike[target].astype(float)
+
+# 범주형 변수 원-핫 인코딩
+X = pd.get_dummies(
+    X,
+    columns=["mnth", "hr", "weathersit"],
+    dtype=float
+)
+
+# 훈련 데이터 80%, 테스트 데이터 20%
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    random_state=42
+)
+
+# DNN 및 CNN 입력 데이터 표준화
+scaler = StandardScaler()
+
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print("훈련 데이터:", X_train_scaled.shape)
+print("테스트 데이터:", X_test_scaled.shape)
+print("설명변수 개수:", X_train_scaled.shape[1])
+
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.callbacks import EarlyStopping
+
+tf.keras.utils.set_random_seed(42)
+
+# DNN 모델
+model_dnn_bike = models.Sequential([
+    layers.Input(shape=(X_train_scaled.shape[1],)),
+    layers.Dense(128, activation="relu"),
+    layers.Dense(64, activation="relu"),
+    layers.Dense(32, activation="relu"),
+    layers.Dense(1)
+])
+
+model_dnn_bike.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss="mse",
+    metrics=["mae"]
+)
+
+early_stop = EarlyStopping(
+    monitor="val_loss",
+    patience=10,
+    restore_best_weights=True
+)
+
+history_dnn_bike = model_dnn_bike.fit(
+    X_train_scaled,
+    y_train,
+    validation_split=0.2,
+    epochs=100,
+    batch_size=32,
+    callbacks=[early_stop],
+    verbose=1
+)
+
+model_dnn_bike.summary()
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+
+# 예측
+y_pred_dnn = model_dnn_bike.predict(
+    X_test_scaled, verbose=0
+).flatten()
+
+# 평가
+rmse_dnn = np.sqrt(mean_squared_error(y_test, y_pred_dnn))
+mae_dnn = mean_absolute_error(y_test, y_pred_dnn)
+
+print(f"DNN RMSE: {rmse_dnn:.4f}")
+print(f"DNN MAE: {mae_dnn:.4f}")
+
+# 1D-CNN 입력 형태로 변환
+X_train_cnn = X_train_scaled.reshape(
+    X_train_scaled.shape[0],
+    X_train_scaled.shape[1],
+    1
+)
+
+X_test_cnn = X_test_scaled.reshape(
+    X_test_scaled.shape[0],
+    X_test_scaled.shape[1],
+    1
+)
+
+print("CNN Train:", X_train_cnn.shape)
+print("CNN Test:", X_test_cnn.shape)
+
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.callbacks import EarlyStopping
+
+tf.keras.utils.set_random_seed(42)
+
+model_cnn_bike = models.Sequential([
+    layers.Input(shape=(X_train_cnn.shape[1], 1)),
+
+    layers.Conv1D(32, kernel_size=3, padding="same",
+                  activation="relu"),
+    layers.MaxPooling1D(pool_size=2),
+
+    layers.Conv1D(64, kernel_size=3, padding="same",
+                  activation="relu"),
+
+    layers.Flatten(),
+    layers.Dense(64, activation="relu"),
+    layers.Dense(1)
+])
+
+model_cnn_bike.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss="mse",
+    metrics=["mae"]
+)
+
+model_cnn_bike.summary()
+
+early_stop_cnn = EarlyStopping(
+    monitor="val_loss",
+    patience=10,
+    restore_best_weights=True
+)
+
+history_cnn_bike = model_cnn_bike.fit(
+    X_train_cnn,
+    y_train,
+    validation_split=0.2,
+    epochs=100,
+    batch_size=32,
+    callbacks=[early_stop_cnn],
+    verbose=1
+)
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import numpy as np
+
+y_pred_cnn = model_cnn_bike.predict(
+    X_test_cnn, verbose=0
+).flatten()
+
+rmse_cnn = np.sqrt(mean_squared_error(y_test, y_pred_cnn))
+mae_cnn = mean_absolute_error(y_test, y_pred_cnn)
+
+print(f"1D-CNN RMSE: {rmse_cnn:.4f}")
+print(f"1D-CNN MAE: {mae_cnn:.4f}")
+
+from sklearn.ensemble import RandomForestRegressor
+
+# Random Forest 모델
+model_rf = RandomForestRegressor(
+    n_estimators=300,
+    max_depth=None,
+    min_samples_leaf=2,
+    random_state=42,
+    n_jobs=-1
+)
+
+# 모델 학습
+model_rf.fit(X_train, y_train)
+
+print("Random Forest 학습 완료!")
+
+# Random Forest 예측
+y_pred_rf = model_rf.predict(X_test)
+
+# RMSE 및 MAE
+rmse_rf = np.sqrt(mean_squared_error(y_test, y_pred_rf))
+mae_rf = mean_absolute_error(y_test, y_pred_rf)
+
+print(f"Random Forest RMSE: {rmse_rf:.4f}")
+print(f"Random Forest MAE: {mae_rf:.4f}")
+
+import pandas as pd
+
+results_bike = pd.DataFrame({
+    "Model": ["DNN", "1D-CNN", "Random Forest"],
+    "RMSE": [rmse_dnn, rmse_cnn, rmse_rf],
+    "MAE": [mae_dnn, mae_cnn, mae_rf]
+})
+
+print("===== Bikeshare 예측 성능 비교 =====")
+print(results_bike.round(4))
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.metrics import mean_squared_error
+
+# 원래 설명변수 목록
+original_features = [
+    "mnth", "hr", "workingday", "weathersit", "temp"
+]
+
+# 원-핫 인코딩된 열을 원래 변수별로 묶기
+feature_groups = {}
+
+for feature in original_features:
+    if feature in X_test.columns:
+        feature_groups[feature] = [feature]
+    else:
+        feature_groups[feature] = [
+            col for col in X_test.columns
+            if col.startswith(feature + "_")
+        ]
+
+print(feature_groups)
+
+def predict_bike(model_name, X_input):
+
+    if model_name == "RF":
+        return model_rf.predict(X_input)
+
+    # DNN과 CNN은 표준화 적용
+    X_scaled = scaler.transform(X_input)
+
+    if model_name == "DNN":
+        return model_dnn_bike.predict(
+            X_scaled, verbose=0
+        ).flatten()
+
+    elif model_name == "1D-CNN":
+        X_cnn = X_scaled.reshape(
+            X_scaled.shape[0],
+            X_scaled.shape[1],
+            1
+        )
+
+        return model_cnn_bike.predict(
+            X_cnn, verbose=0
+        ).flatten()
+
+def calculate_pfi(model_name, X_data, y_data,
+                  n_repeats=10, random_state=42):
+
+    rng = np.random.default_rng(random_state)
+
+    # 원래 RMSE
+    original_pred = predict_bike(model_name, X_data)
+    original_rmse = np.sqrt(
+        mean_squared_error(y_data, original_pred)
+    )
+
+    importance = {}
+
+    for feature, columns in feature_groups.items():
+
+        scores = []
+
+        for _ in range(n_repeats):
+
+            X_permuted = X_data.copy()
+
+            # 같은 순열을 사용해 관련 더미변수들을 함께 섞음
+            perm_idx = rng.permutation(len(X_data))
+
+            X_permuted.loc[:, columns] = (
+                X_data[columns].iloc[perm_idx].to_numpy()
+            )
+
+            perm_pred = predict_bike(
+                model_name, X_permuted
+            )
+
+            perm_rmse = np.sqrt(
+                mean_squared_error(y_data, perm_pred)
+            )
+
+            scores.append(perm_rmse - original_rmse)
+
+        importance[feature] = np.mean(scores)
+
+    return pd.Series(importance)
+
+pfi_dnn = calculate_pfi("DNN", X_test, y_test)
+pfi_cnn = calculate_pfi("1D-CNN", X_test, y_test)
+pfi_rf = calculate_pfi("RF", X_test, y_test)
+
+pfi_results = pd.DataFrame({
+    "DNN": pfi_dnn,
+    "1D-CNN": pfi_cnn,
+    "Random Forest": pfi_rf
+})
+
+print(pfi_results.round(4))
+
+import shap
+
+# 계산 시간을 줄이기 위한 표본 추출
+X_background = X_train.sample(
+    n=min(50, len(X_train)),
+    random_state=42
+)
+
+X_shap = X_test.sample(
+    n=min(100, len(X_test)),
+    random_state=42
+)
+
+print("Background:", X_background.shape)
+print("SHAP Samples:", X_shap.shape)
+
+def calculate_shap(model_name):
+
+    predict_fn = lambda data: predict_bike(
+        model_name,
+        pd.DataFrame(
+            data,
+            columns=X_train.columns
+        )
+    )
+
+    explainer = shap.PermutationExplainer(
+        predict_fn,
+        X_background
+    )
+
+    shap_values = explainer(
+        X_shap,
+        max_evals=2 * X_train.shape[1] + 1
+    )
+
+    return shap_values
+
+# 세 모델 SHAP 계산
+shap_dnn = calculate_shap("DNN")
+shap_cnn = calculate_shap("1D-CNN")
+shap_rf = calculate_shap("RF")
+
+print("SHAP 계산 완료!")
+
+def aggregate_shap(shap_values):
+
+    values = shap_values.values
+
+    importance = {}
+
+    for feature, columns in feature_groups.items():
+
+        idx = [
+            X_train.columns.get_loc(col)
+            for col in columns
+        ]
+
+        # 같은 원래 변수에 속한 SHAP 값을 합산
+        grouped_values = values[:, idx].sum(axis=1)
+
+        importance[feature] = np.mean(
+            np.abs(grouped_values)
+        )
+
+    return pd.Series(importance)
+
+shap_results = pd.DataFrame({
+    "DNN": aggregate_shap(shap_dnn),
+    "1D-CNN": aggregate_shap(shap_cnn),
+    "Random Forest": aggregate_shap(shap_rf)
+})
+
+print(shap_results.round(4))
+
+# PFI 중요도 순위
+pfi_rank = pfi_results.rank(
+    ascending=False,
+    method="min"
+)
+
+# SHAP 중요도 순위
+shap_rank = shap_results.rank(
+    ascending=False,
+    method="min"
+)
+
+print("===== PFI Ranking =====")
+print(pfi_rank.astype(int))
+
+print("\n===== SHAP Ranking =====")
+print(shap_rank.astype(int))
